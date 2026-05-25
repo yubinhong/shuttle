@@ -42,17 +42,18 @@ jobs:
             -project Shuttle.xcodeproj \
             -target Shuttle \
             -configuration Release \
-            -derivedDataPath "$PWD/build/DerivedData" \
+            CONFIGURATION_BUILD_DIR="$PWD/build/Release" \
             ARCHS="arm64 x86_64" \
             ONLY_ACTIVE_ARCH=NO \
             MACOSX_DEPLOYMENT_TARGET=11.0 \
             CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             build
 
       - name: Verify universal binary
         run: |
-          APP="$PWD/build/DerivedData/Build/Products/Release/Shuttle.app"
+          APP="$PWD/build/Release/Shuttle.app"
           BINARY="$APP/Contents/MacOS/Shuttle"
 
           test -d "$APP"
@@ -66,7 +67,7 @@ jobs:
         run: |
           mkdir -p "$PWD/build/artifacts"
           ditto -c -k --keepParent \
-            "$PWD/build/DerivedData/Build/Products/Release/Shuttle.app" \
+            "$PWD/build/Release/Shuttle.app" \
             "$PWD/build/artifacts/Shuttle-macos-universal.zip"
 
       - name: Upload app artifact
