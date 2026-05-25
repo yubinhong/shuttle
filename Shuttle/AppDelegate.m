@@ -542,10 +542,15 @@
     
     //script expects the following order: Command, Theme, Title unless its virtual which bypasses the url check and expects Command, Title
     NSArray *passParameters;
-    NSURL *url;
+    NSURL *url = nil;
     if ( ![terminalWindow isEqualToString:@"virtual"] ) {
         passParameters = @[escapedObject, terminalTheme, terminalTitle];
-        url = [NSURL URLWithString:escapedObject];
+
+        NSString *trimmedObject = [escapedObject stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        NSURL *candidateURL = [NSURL URLWithString:trimmedObject];
+        if (candidateURL.scheme.length > 0) {
+            url = candidateURL;
+        }
     }
     else {
         passParameters = @[escapedObject, terminalTitle];

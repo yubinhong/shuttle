@@ -12,8 +12,10 @@ A simple shortcut menu for macOS
 
 ## Installation
 
-1. Download [Shuttle](http://fitztrev.github.io/shuttle/)
+1. Download the latest universal macOS build from [GitHub Releases](../../releases/latest)
 2. Copy to Applications
+
+The GitHub Actions build produces a universal app for Apple Silicon and Intel Macs. For maintainers, pushing a version tag such as `v1.3.1` builds Shuttle and uploads `Shuttle-macos-universal.zip` to that tag's GitHub Release.
 
 ## Help
 See the [Wiki](https://github.com/fitztrev/shuttle/wiki) pages. 
