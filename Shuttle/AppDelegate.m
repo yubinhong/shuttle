@@ -70,21 +70,8 @@
     // Create the status bar item
     statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
     [statusItem setMenu:menu];
-    [statusItem setImage: regularIcon];
-    
-    // Check for AppKit Version, add support for darkmode if > 10.9
-    BOOL oldAppKitVersion = (floor(NSAppKitVersionNumber) <= 1265);
-    
-    // 10.10 or higher, dont load the alt image let OS X style it.
-    if (!oldAppKitVersion)
-    {
-        regularIcon.template = YES;
-    }
-    // Load the alt image for OS X < 10.10
-    else{
-        [statusItem setHighlightMode:YES];
-        [statusItem setAlternateImage: altIcon];
-    }
+    regularIcon.template = YES;
+    statusItem.button.image = regularIcon;
     
     launchAtLoginController = [[LaunchAtLoginController alloc] init];
     // Needed to trigger the menuWillOpen event
@@ -707,7 +694,7 @@
 - (IBAction)showImportPanel:(id)sender {
     NSOpenPanel * openPanelObj	= [NSOpenPanel openPanel];
     NSInteger tvarNSInteger	= [openPanelObj runModal];
-    if(tvarNSInteger == NSOKButton){
+    if(tvarNSInteger == NSModalResponseOK){
         //Backup the current configuration
         [[NSFileManager defaultManager] moveItemAtPath:shuttleConfigFile toPath: [NSHomeDirectory() stringByAppendingPathComponent:@".shuttle.json.backup"] error: nil];
         
@@ -727,7 +714,7 @@
     NSAlert *alert = [[NSAlert alloc] init];
     [alert setInformativeText:errorInfo];
     [alert setMessageText:errorMessage];
-    [alert setAlertStyle:NSWarningAlertStyle];
+    [alert setAlertStyle:NSAlertStyleWarning];
     
     if (continueOption) {
         [alert addButtonWithTitle:NSLocalizedString(@"Quit",nil)];
@@ -746,7 +733,7 @@
     NSSavePanel * savePanelObj	= [NSSavePanel savePanel];
     //Display the Save Panel
     NSInteger result	= [savePanelObj runModal];
-    if (result == NSFileHandlingPanelOKButton) {
+    if (result == NSModalResponseOK) {
         NSURL *saveURL = [savePanelObj URL];
         // then copy a previous file to the new location
         [[NSFileManager defaultManager] copyItemAtPath:shuttleConfigFile toPath:saveURL.path error:nil];
@@ -758,7 +745,7 @@
     //if the editor setting is omitted or contains 'default' open using the default editor.
     if([editorPref rangeOfString:@"default"].location != NSNotFound) {
         
-        [[NSWorkspace sharedWorkspace] openFile:shuttleConfigFile];
+        [[NSWorkspace sharedWorkspace] openURL:[NSURL fileURLWithPath:shuttleConfigFile]];
     }
     else{
         //build the editor command

@@ -23,6 +23,8 @@
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #import "LaunchAtLoginController.h"
+#import <CoreServices/CoreServices.h>
+#import <ServiceManagement/ServiceManagement.h>
 
 static NSString *const StartAtLoginKey = @"launchAtLogin";
 
@@ -44,20 +46,29 @@ void sharedFileListDidChange(LSSharedFileListRef inList, void *context)
 
 #pragma mark Initialization
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 - (id) init
 {
     [super init];
-    loginItems = LSSharedFileListCreate(NULL, kLSSharedFileListSessionLoginItems, NULL);
-    LSSharedFileListAddObserver(loginItems, CFRunLoopGetMain(),
-                                (CFStringRef)NSDefaultRunLoopMode, sharedFileListDidChange, self);
+    if (@available(macOS 13.0, *)) {
+        loginItems = NULL;
+    } else {
+        loginItems = LSSharedFileListCreate(NULL, kLSSharedFileListSessionLoginItems, NULL);
+        LSSharedFileListAddObserver(loginItems, CFRunLoopGetMain(),
+                                    (CFStringRef)NSDefaultRunLoopMode, sharedFileListDidChange, self);
+    }
     return self;
 }
 
 - (void) dealloc
 {
-    LSSharedFileListRemoveObserver(loginItems, CFRunLoopGetMain(),
-                                   (CFStringRef)NSDefaultRunLoopMode, sharedFileListDidChange, self);
-    CFRelease(loginItems);
+    if (loginItems) {
+        LSSharedFileListRemoveObserver(loginItems, CFRunLoopGetMain(),
+                                       (CFStringRef)NSDefaultRunLoopMode, sharedFileListDidChange, self);
+        CFRelease(loginItems);
+    }
     [super dealloc];
 }
 
@@ -68,12 +79,11 @@ void sharedFileListDidChange(LSSharedFileListRef inList, void *context)
     if (wantedURL == NULL || fileList == NULL)
         return NULL;
     
-    NSArray *listSnapshot = [NSMakeCollectable(LSSharedFileListCopySnapshot(fileList, NULL)) autorelease];
+    NSArray *listSnapshot = [(NSArray *)LSSharedFileListCopySnapshot(fileList, NULL) autorelease];
     for (id itemObject in listSnapshot) {
         LSSharedFileListItemRef item = (LSSharedFileListItemRef) itemObject;
         UInt32 resolutionFlags = kLSSharedFileListNoUserInteraction | kLSSharedFileListDoNotMountVolumes;
-        CFURLRef currentItemURL = NULL;
-        LSSharedFileListItemResolve(item, resolutionFlags, &currentItemURL, NULL);
+        CFURLRef currentItemURL = LSSharedFileListItemCopyResolvedURL(item, resolutionFlags, NULL);
         if (currentItemURL && CFEqual(currentItemURL, wantedURL)) {
             CFRelease(currentItemURL);
             return item;
@@ -92,6 +102,24 @@ void sharedFileListDidChange(LSSharedFileListRef inList, void *context)
 
 - (void) setLaunchAtLogin: (BOOL) enabled forURL: (NSURL*) itemURL
 {
+    if (@available(macOS 13.0, *)) {
+        SMAppService *mainAppService = [SMAppService mainAppService];
+        SMAppServiceStatus status = mainAppService.status;
+        NSError *error = nil;
+
+        if (enabled && status == SMAppServiceStatusNotRegistered) {
+            [mainAppService registerAndReturnError:&error];
+        } else if (!enabled && (status == SMAppServiceStatusEnabled || status == SMAppServiceStatusRequiresApproval)) {
+            [mainAppService unregisterAndReturnError:&error];
+        }
+
+        if (error) {
+            NSLog(@"Unable to update launch at login: %@", error);
+        }
+
+        return;
+    }
+
     LSSharedFileListItemRef appItem = [self findItemWithURL:itemURL inFileList:loginItems];
     if (enabled && !appItem) {
         LSSharedFileListInsertItemURL(loginItems, kLSSharedFileListItemBeforeFirst,
@@ -99,6 +127,8 @@ void sharedFileListDidChange(LSSharedFileListRef inList, void *context)
     } else if (!enabled && appItem)
         LSSharedFileListItemRemove(loginItems, appItem);
 }
+
+#pragma clang diagnostic pop
 
 #pragma mark Basic Interface
 
@@ -116,6 +146,10 @@ void sharedFileListDidChange(LSSharedFileListRef inList, void *context)
 
 - (BOOL) launchAtLogin
 {
+    if (@available(macOS 13.0, *)) {
+        return [SMAppService mainAppService].status == SMAppServiceStatusEnabled;
+    }
+
     return [self willLaunchAtLogin:[self appURL]];
 }
 

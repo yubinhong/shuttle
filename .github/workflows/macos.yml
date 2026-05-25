@@ -1,0 +1,78 @@
+name: macOS Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Universal macOS App
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Show build environment
+        run: |
+          sw_vers
+          uname -m
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-path
+
+      - name: Validate project files
+        run: |
+          plutil -lint Shuttle.xcodeproj/project.pbxproj Shuttle/Shuttle-Info.plist
+
+      - name: Build Shuttle
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Shuttle.xcodeproj \
+            -target Shuttle \
+            -configuration Release \
+            -derivedDataPath "$PWD/build/DerivedData" \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
+            MACOSX_DEPLOYMENT_TARGET=11.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Verify universal binary
+        run: |
+          APP="$PWD/build/DerivedData/Build/Products/Release/Shuttle.app"
+          BINARY="$APP/Contents/MacOS/Shuttle"
+
+          test -d "$APP"
+          test -x "$BINARY"
+
+          file "$BINARY"
+          lipo -archs "$BINARY" | grep -q "arm64"
+          lipo -archs "$BINARY" | grep -q "x86_64"
+
+      - name: Package app
+        run: |
+          mkdir -p "$PWD/build/artifacts"
+          ditto -c -k --keepParent \
+            "$PWD/build/DerivedData/Build/Products/Release/Shuttle.app" \
+            "$PWD/build/artifacts/Shuttle-macos-universal.zip"
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shuttle-macos-universal
+          path: build/artifacts/Shuttle-macos-universal.zip
+          if-no-files-found: error
+          retention-days: 14
